@@ -1,18 +1,28 @@
 import { createClient } from "@supabase/supabase-js";
 
-const url = import.meta.env.VITE_SUPABASE_URL;
-const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL;   // keep your real URL in env
+const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// temporary debug
-console.log("VITE_SUPABASE_URL:", url?.slice(0, 30) + "...", "ANON?", !!anon);
-
-if (!url || !anon) {
-  throw new Error(
-    "Supabase env not set. Check app/.env.local (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY) and restart dev server."
-  );
+if (!SUPABASE_URL || !SUPABASE_ANON) {
+  throw new Error("Supabase env not set.");
 }
 
-export const supabase = createClient(url, anon, {
-  auth: { persistSession: true, autoRefreshToken: true },
+// In the browser, route requests through /api/supa to avoid CORS
+const shouldProxy = typeof window !== "undefined";
+
+const client = createClient(SUPABASE_URL, SUPABASE_ANON, {
+  global: {
+    fetch: (url, opts) => {
+      if (shouldProxy && url.startsWith(SUPABASE_URL)) {
+        const proxied = "/api/supa" + url.slice(SUPABASE_URL.length);
+        return fetch(proxied, opts);
+      }
+      return fetch(url, opts);
+    },
+  },
 });
+
+export const supabase = client;
+
+
 
