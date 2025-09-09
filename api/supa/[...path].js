@@ -1,3 +1,4 @@
+// api/supa/[...path].js
 export default async function handler(req, res) {
   try {
     // CORS preflight
@@ -9,26 +10,24 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Catch-all param can be array OR string; normalize it
-    const raw = req.query.path;
-    const segments = Array.isArray(raw) ? raw : (raw ? [raw] : []);
-    const qsIndex = req.url.indexOf("?");
-    const qs = qsIndex !== -1 ? req.url.slice(qsIndex) : "";
-
-    // Build base from env, sanitize
+    // Build base from env, sanitize, strip trailing slash
     const base = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "")
       .trim()
       .replace(/[<>]/g, "")
       .replace(/\/+$/, "");
-    if (!base) {
-      res.status(500).json({ error: "missing_supabase_url" });
-      return;
-    }
+    if (!base) return res.status(500).json({ error: "missing_supabase_url" });
 
-    // ✅ Remove the “allow only rest/auth” guard to avoid false negatives
-    const targetUrl = `${base}/${segments.join("/")}${qs}`;
+    // 🔧 Robust path extraction: parse from req.url (ignore dynamic param)
+    // req.url is something like: /api/supa/rest/v1/...?... 
+    const host = req.headers.host || "localhost";
+    const full = new URL(req.url, `https://${host}`);
+    const pathAfterProxy = full.pathname.replace(/^\/api\/supa\/?/, ""); // rest/v1/...
+    const qs = full.search || "";
+    const targetUrl = `${base}/${pathAfterProxy}${qs}`;
 
     const anon = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+    if (!anon) return res.status(500).json({ error: "missing_anon_key" });
+
     const headers = {
       apikey: anon,
       Authorization: `Bearer ${anon}`,
@@ -36,7 +35,7 @@ export default async function handler(req, res) {
     };
     if (req.headers["content-type"]) headers["content-type"] = req.headers["content-type"];
 
-    // Stream raw body so /auth/v1/signup receives the JSON correctly
+    // Stream raw body for POST/PATCH/etc (needed for /auth/v1/signup)
     let body;
     if (req.method !== "GET" && req.method !== "HEAD") {
       const chunks = [];
@@ -50,12 +49,15 @@ export default async function handler(req, res) {
     const ct = r.headers.get("content-type");
     if (ct) res.setHeader("content-type", ct);
     res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("x-proxy-target", targetUrl);
+
     const buf = Buffer.from(await r.arrayBuffer());
     res.send(buf);
   } catch (e) {
     res.status(500).json({ error: e?.message || "proxy_error" });
   }
 }
+
 
 
 
