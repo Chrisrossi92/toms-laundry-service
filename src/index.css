@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+/* Global background */
+body {
+  background-image: url("/bg-gradient.jpg");
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed; /* subtle parallax */
+  background-repeat: no-repeat;
+}
+
