@@ -2,6 +2,9 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/api/supa/(.*)", "destination": "/api/supa/[...path].js" }
+    { "source": "/api/supa/(.*)", "destination": "/api/supa/[...path].js" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
+
+

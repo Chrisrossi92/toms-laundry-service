@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useSession } from "../lib/AuthProvider.jsx";
 import { usePricing } from "../hooks/usePricing";  // per_bag_cents, pickup_fee_cents, min_order_cents, free_pickup_threshold_cents
 
@@ -13,6 +14,8 @@ export default function Home() {
     pricing.free_pickup_threshold_cents > 0
       ? (pricing.free_pickup_threshold_cents / 100).toFixed(2)
       : null;
+
+  const scheduleTo = session ? "/me" : "/schedule";
 
   return (
     <>
@@ -36,18 +39,18 @@ export default function Home() {
               </p>
 
               <div className="mt-6 flex gap-2">
-                <a
-                  href={session ? "/me" : "/schedule"}
+                <Link
+                  to={scheduleTo}
                   className="inline-flex items-center rounded-md bg-white px-4 py-2 text-black font-medium hover:bg-gray-100"
                 >
                   Schedule a pickup
-                </a>
-                <a
-                  href="/track"
+                </Link>
+                <Link
+                  to="/track"
                   className="inline-flex items-center rounded-md border border-white/30 bg-white/10 px-4 py-2 text-white hover:bg-white/20"
                 >
                   Track an order
-                </a>
+                </Link>
               </div>
 
               <ul className="mt-6 space-y-1 text-sm text-gray-100">
@@ -102,6 +105,7 @@ function Step({ title, body }) {
     </div>
   );
 }
+
 
 
 
