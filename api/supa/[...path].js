@@ -11,7 +11,7 @@ export default async function handler(req, res) {
     const segments = Array.isArray(req.query.path) ? req.query.path : [];
     const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
 
-    const targetBase = "https://<YOUR-PROJECT-REF>.supabase.co"; // <-- keep your real ref
+    const targetBase = "https://<https://ggmqsofpfngohngpitue.supabase.co>.supabase.co"; // <-- keep your real ref
     const targetUrl = `${targetBase}/${segments.join("/")}${qs}`;
 
     const anon = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
