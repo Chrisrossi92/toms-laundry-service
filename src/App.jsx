@@ -12,10 +12,28 @@ import Driver from "./pages/Driver.jsx";
 import AdminSlots from "./pages/AdminSlots.jsx";
 import AdminPricing from "./pages/AdminPricing.jsx";  // keep if you added the page
 import AdminUsers from "./pages/AdminUsers.jsx";      // keep if you added the page
+import Reset from './pages/Reset.jsx';
+
 
 // Nav
 import RoleNav from "./components/nav/RoleNav.jsx";
 import AuthMenu from "./components/nav/AuthMenu.jsx";
+import { useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+
+function AppShell() {
+  const nav = useNavigate();
+  const loc = useLocation();
+
+  useEffect(() => {
+    if (window.location.hash.includes('type=recovery') && !loc.pathname.startsWith('/reset')) {
+      nav('/reset' + window.location.hash, { replace: true });
+    }
+  }, [loc, nav]);
+
+  // ...rest of your app shell
+}
+
 
 function RequireAuth({ children }) {
   const { session, authLoading } = useSession();
@@ -143,6 +161,7 @@ export default function App() {
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" />} />
+          <Route path="/reset" element={<Reset />} />
         </Routes>
       </main>
 
