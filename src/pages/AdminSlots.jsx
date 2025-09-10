@@ -41,17 +41,22 @@ export default function AdminSlots() {
   useEffect(() => { loadZones(); }, []);
 
   async function loadZones() {
-    setZonesLoading(true); setZErr("");
-    const { data, error } = await supabase
-      .from("zones")
-      .select("id,name,zip_codes,pickup_fee_cents")
-      .order("id", { ascending: true });
-    if (error) setZErr(error.message);
+  setZonesLoading(true); setZErr("");
+  const { data, error } = await supabase
+    .from("zones")
+    .select("id,name,zip_codes,pickup_fee_cents")
+    .order("id", { ascending: true });
+
+  if (error) {
+    console.error("zones load error:", error);
+    setZErr(error.message);     // this renders at the top of the page
+    setZones([]);               // keep UI stable
+  } else {
     setZones(data || []);
-    // auto-select first zone if none selected
     if (!zoneId && data && data.length) setZoneId(data[0].id);
-    setZonesLoading(false);
   }
+  setZonesLoading(false);
+}
 
   async function createZone() {
     setMsg(""); setZErr("");
