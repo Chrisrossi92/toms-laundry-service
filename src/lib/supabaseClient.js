@@ -28,7 +28,7 @@ const client = createClient(SUPABASE_URL, SUPABASE_ANON, {
   },
 });
 
-e// keep the imports + guard above as-is
+// keep the imports + guard above as-is
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON, {
   global: {
     fetch: (url, opts) => {
