@@ -1,248 +1,215 @@
-# Tom’s Laundry Service (MVP)
+Tom’s Laundry Service — MVP
 
-An MVP web app for **Tom’s Laundry Service**, a pickup & delivery laundry platform. Customers schedule a pickup, drivers/admins manage orders, and customers receive status updates by email.
+Pickup & delivery laundry, end-to-end: customers schedule pickups, admins manage operations, drivers run their routes, and everyone gets updates.
 
----
+MVP Snapshot (what’s live)
 
-## Overview
+Public: Home, Schedule (guest checkout supported), Track
 
-**What it is:**  
-- A web app (desktop + mobile-friendly) to let customers schedule laundry pickups and deliveries.  
-- Admin dashboard to track orders, assign drivers, and advance statuses.  
-- Driver view to manage assigned stops with one-tap status updates.  
-- Customers see progress in their account (/track) and get **email notifications**.  
-- Pricing model: **flat-rate per bag** + pickup fee.  
+Customer: Account (phone + email-opt-in)
 
-**Who it’s for:**  
-- Busy professionals, families, small businesses (salons, Airbnbs, gyms).  
-- Tom’s barber shop clients & local Cleveland market initially.  
+Admin: Dashboard, Zones & Slots, Pricing, Users (invites), Business Settings
 
-**Future direction:**  
-- Mobile apps with push notifications (replace email).  
-- Subscriptions (weekly/bi-weekly).  
-- Commercial accounts (restaurants, hotels, salons).  
-- Integration with Stripe for live payments (already wired).  
+Driver: Driver dashboard with one-tap status updates
 
----
+Payments: Stripe Checkout (Edge Functions: create-checkout, stripe-webhook)
 
-## How It Works (Customer Flow)
+Comms: Postmark email notifications (order updates)
 
-1. **Sign up / Log in** (email + password or magic link).  
-2. **Account page:** save phone (for calls), toggle “Email me updates”, set laundry preferences.  
-3. **Schedule a pickup:**  
-   - Enter address & ZIP → matched to service zone.  
-   - Pick an available evening pickup slot.  
-   - Select number of bags & instructions.  
-   - Pay via Stripe Checkout.  
-4. **Track order:**  
-   - See order status & progress bar.  
-   - Open “View Details” for pickup window, instructions, bag codes, and event log.  
-   - Receive **email updates** (pickup en route, picked up, out for delivery, delivered, etc.).  
+How it works (quick flow)
 
----
+Customer enters address & ZIP → app picks the zone (ZIP array match).
 
-## Admin & Driver Functionality
+Customer chooses a time slot (date + 6–8pm window), sets bags & notes.
 
-### Admin
-- `/dashboard`:  
-  - Shows orders grouped by status.  
-  - Advance order statuses.  
-  - Assign drivers by email.  
-  - See totals, windows, and special instructions.  
-- `/admin/slots`:  
-  - Create/update zones (names, ZIP codes, fees).  
-  - Generate pickup slots (e.g. 14 days of 6–8pm windows).  
-  - View slots and capacity usage.  
+Customer pays via Stripe Checkout.
 
-### Driver
-- `/driver`:  
-  - Sees only their assigned orders (RLS protected).  
-  - Simple “Advance” button per order to update status.  
-  - Optimistic UI → feels instant.  
-  - Can view notes/instructions.  
+Admin sees the order on Dashboard, assigns a driver, advances statuses.
 
----
+Customer can Track with a live timeline and gets emails at key steps.
 
-## Tech Stack
+Tech Stack
 
-- **Frontend:**  
-  - React + Vite + TailwindCSS  
-  - Supabase client (`@supabase/supabase-js`)  
-  - Deployed locally, will support mobile apps later
+Frontend: React + Vite + Tailwind
+Backend: Supabase (Postgres, Auth, RLS) + Supabase Edge Functions (Deno)
+Payments: Stripe Checkout
+Email: Postmark
 
-- **Backend:**  
-  - Supabase (Postgres + Auth + RLS)  
-  - Supabase Edge Functions (Deno) for Stripe + Notifications  
-  - Stripe Checkout for payments  
-  - Postmark for transactional emails
+Key tables: user_profiles, zones (zip_codes[]), time_slots (date, window_start, window_end, capacity, used_count), orders, order_bags, order_events, settings_pricing, settings_laundry.
 
-- **Database Schema (core):**  
-  - `users` (Supabase Auth)  
-  - `user_profiles` (role, phone, email_opt_in)  
-  - `addresses`  
-  - `zones` (with ZIP arrays + pickup fee)  
-  - `time_slots` (capacity, used_count)  
-  - `orders` (status, bags, totals, links to slot, driver, facility)  
-  - `order_bags` (bag codes, notes, weights)  
-  - `order_events` (timeline of status updates, triggers notifications)  
-  - `preferences` (detergent, wash temp, etc.)  
+Get started
+1) Environment
 
----
+Create .env.local (frontend):
 
-## Notes from Today (Session Log)
+VITE_SUPABASE_URL=YOUR_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+VITE_SITE_URL=http://localhost:5173
+VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...   # optional until Stripe go-live
 
-- ✅ Flattened project structure (removed `app/` nesting).  
-- ✅ Fixed Tailwind v4 setup with `@tailwindcss/postcss`.  
-- ✅ Built out hero + background gradient styling.  
-- ✅ Implemented full **Schedule** page with slot/zone lookups.  
-- ✅ Stripe Checkout wired (Edge Functions: `create-checkout`, `stripe-webhook`).  
-- ✅ Orders now created on successful payment.  
-- ✅ Built **Track** page with realtime status timeline + “View details” modal (bags + events).  
-- ✅ Built **Dashboard** page (admin) to advance statuses, assign drivers, live refresh.  
-- ✅ Built **Driver** page (role-based, shows assigned orders, thumb-friendly UI).  
-- ✅ Added **Admin Slots** page to manage zones/ZIPs and generate time slots.  
-- ✅ Added **Account** page with phone, email opt-in, laundry preferences.  
-- ✅ Notifications switched from Twilio SMS → Postmark email.  
-- ✅ `notify` function built and deployed; DB trigger sends emails automatically on status events.  
 
----
+Supabase → Project Settings → Functions → Secrets:
 
-## Plan for Next Session
-
-- [ ] Write **Success/Cancel pages** for Stripe (with clear CTAs).  
-- [ ] Add **order confirmation email** after scheduling (pickup window + instructions).  
-- [ ] Add **admin daily digest email** (slot counts, today’s pickups).  
-- [ ] Polish Account page UX (inline save, show opt-in status).  
-- [ ] Begin planning **customer-facing mobile app** (push notifications).  
-- [ ] Explore **subscription plans** and recurring pickups.  
-
----
-
-## Dev Notes
-
-- **Env Vars (Supabase Functions):**
-
-SUPABASE_URL=...
-SUPABASE_SERVICE_ROLE_KEY=...
+SUPABASE_URL=YOUR_SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-POSTMARK_TOKEN=server-xxx
-FROM_EMAIL=updates@yourdomain.com
+POSTMARK_TOKEN=server-xxxx
+FROM_EMAIL=updates@your-domain.com
 
-- **Run locally:**
-```bash
-npm run dev                   # frontend
-supabase functions serve      # backend functions
-stripe listen --forward-to http://localhost:54321/functions/v1/stripe-webhook
+2) Run locally
+npm i
+npm run dev
+# (separately) supabase functions serve
+# (optionally) stripe listen --forward-to http://localhost:54321/functions/v1/stripe-webhook
+
+3) Deploy
+
+Vercel project settings → add the same VITE_* vars. Then:
+
+vercel --prod
 
 
-supabase functions deploy create-checkout
-supabase functions deploy stripe-webhook
-supabase functions deploy notify
+vercel.json rewrites are included (SPA fallback + API route), but the app now calls Auth & core tables direct to Supabase for stability.
 
+Admin handbook (day-to-day)
 
-Session Log
-2025-09-07
+Zones & Slots
 
-Initial app setup + Tailwind v4 fix
+Create a zone (e.g., “Cleveland West”), add ZIP codes, set pickup fee.
 
-Hero/landing page with gradient background
+Generate time slots for the next 1–2 weeks (e.g., 6–8pm, capacity 8).
 
-Zones & slots seeded manually, then admin page created for automation
+Pricing
 
-Stripe Checkout integrated (Edge Functions for checkout + webhook)
+Set $ / bag, pickup fee, and free-pickup threshold.
 
-Schedule page → creates orders on successful payment
+Users
 
-Track page → status timeline + details modal with bags/events
+Invite staff (drivers/admins).
 
-Dashboard (admin) → advance statuses, assign drivers, realtime updates
+Admin role is stored in user_profiles.role.
 
-Driver view → assigned orders only, thumb-friendly “Advance” buttons
+Business Settings (Account → admin view)
 
-Account page → email, phone, laundry preferences, email opt-in toggle
+Toggles for softener / fragrance-free / notes.
 
-Notifications → switched from Twilio SMS to Postmark email
+Default detergent / wash temp / dry level.
 
-Built notify function + DB trigger for automatic emails
+Orders
 
-Confirmed order lifecycle works end-to-end (customer schedule → admin advance → customer track → emails sent)
+Dashboard shows buckets by status.
 
-Session Log — September 9, 2025
-Current State
+Assign drivers, advance statuses, view notes.
 
-Frontend (Vite + React):
+Emails go out at key events.
 
-Home, Schedule, Track, Account, Dashboard, Zones & Slots, Pricing, and Driver pages built out.
+Guest checkout (no account needed)
 
-Role-based navigation implemented (customer, admin, driver).
+Schedule page allows guests to order; they must provide an email for the Stripe receipt & updates.
 
-Admin dashboard shows KPIs and order status buckets with assign/reassign functionality.
+Logged-in users skip the guest email field and can save their phone number.
 
-Customer scheduling form works, creates Stripe Checkout session.
+Developer notes
+Supabase client: one instance
 
-Email notifications (via Postmark) integrated for order confirmations.
+The app exports a singleton client and uses a single AuthProvider. Avoid creating clients elsewhere and avoid importing from multiple relative paths.
 
-Twilio SMS integration deferred (too much overhead — replaced with email updates).
+Use: import { supabase } from "@/lib/supabaseClient"; (Vite alias)
 
-Supabase:
+Do not import from app_backup/ (kept as archive only).
 
-Tables: orders, order_bags, order_events, time_slots, zones, user_profiles, settings_pricing, settings_laundry.
+Data access
 
-RLS policies working for users vs. admins.
+Direct calls to Supabase for: /auth/v1, user_profiles, zones, time_slots, settings_*.
 
-All required secrets configured: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, POSTMARK_TOKEN, FROM_EMAIL.
+Stripe + other: Edge Functions (create-checkout, stripe-webhook, notify).
 
-Edge functions deployed:
+RLS:
 
-create-checkout (creates Stripe session w/ metadata)
+user_profiles: user read/write own; admin role set via SQL or Users tooling.
 
-stripe-webhook (listens for Stripe events → inserts orders)
+zones: select for all authenticated; insert/update/delete for admin.
 
-notify (for email updates)
+time_slots: select for authenticated.
 
-invite-user (for creating accounts and assigning roles)
+settings_*: select for authenticated; insert/update for admin.
 
-Stripe:
+One-time seeding (example)
+insert into public.zones (name, zip_codes, pickup_fee_cents)
+values ('Cleveland West', array['44102','44107','44111','44116'], 300)
+on conflict (name) do update set zip_codes = excluded.zip_codes, pickup_fee_cents = excluded.pickup_fee_cents;
 
-Sandbox mode fully set up.
+-- Generate two weeks of 6–8pm windows, capacity 8
+with d as (
+  select generate_series(current_date, current_date + interval '13 days', interval '1 day')::date as day
+)
+insert into public.time_slots (zone_id, date, window_start, window_end, capacity, used_count)
+select (select id from public.zones where name='Cleveland West'),
+       d.day, time '18:00', time '20:00', 8, 0
+from d
+on conflict do nothing;
 
-create-checkout successfully launches checkout sessions.
+Stripe webhook
 
-Webhook destination configured in Stripe pointing to Supabase Edge Function stripe-webhook.
+In Supabase → Edge Functions → stripe-webhook: Verify JWT = off (Stripe doesn’t send JWTs).
 
-STRIPE_WEBHOOK_SECRET added to Supabase secrets.
+create-checkout passes slot + bag metadata; webhook finalizes order on successful payment.
 
-Problems Encountered
+Go-live checklist
 
-Stripe webhooks were failing with 401 Unauthorized before reaching function code.
+ Vercel env vars set (VITE_*)
 
-Root cause: Supabase Edge Functions default to requiring JWT auth. Stripe does not send JWTs.
+ Supabase secrets set (service role, Stripe, Postmark)
 
-After redeployments and retries, errors persisted until confirming this mismatch.
+ stripe-webhook JWT off
 
-Fix In Progress
+ At least one zone with ZIPs and time slots generated
 
-Solution: Disable JWT verification for the stripe-webhook function.
+ Pricing and Business Settings configured
 
-In Supabase dashboard → Edge Functions → stripe-webhook → turn off Verify JWT.
+ Test: guest checkout + email receipt
 
-Alternatively: redeploy with --no-verify-jwt flag if available.
+ Test: admin assigns driver + advances statuses
 
-Once JWT verification is disabled, Stripe’s checkout.session.completed events will pass through to our function.
+ Test: driver dashboard updates order status
 
-Next test: resend events from Stripe dashboard to confirm order insertion.
+Roadmap (post-MVP)
 
-Next Steps
+Near-term
 
-Disable JWT verification on stripe-webhook function (if not already done).
+Orders → Emails: add confirmation email with slot details; admin daily digest.
 
-Resend checkout.session.completed event from Stripe → confirm logs show success.
+Success/Cancel pages: friendly confirmation & retry UX.
 
-Check Supabase orders table for new row (payment_status = paid).
+Staff invites: flow for setting role + pay% in one step.
 
-If metadata errors occur, ensure create-checkout is passing user_id, pickup_slot_id, est_bags, and instructions in the session metadata.
+CSV/Admin exports: daily/weekly reports.
 
-After confirmed success → wire up Postmark email notifications inside the webhook handler so customers/admins are emailed once payment succeeds.
+Product enhancements
 
-Finalize driver/admin views so they can see orders flow from Scheduled → En Route → Completed.
+Subscriptions: weekly/bi-weekly pickups with pause/resume.
+
+Commercial accounts: multi-location, custom pricing, consolidated billing.
+
+Tipping: add tip at checkout or on delivery confirmation.
+
+Ops & quality
+
+Capacity guards: enforce slot capacity atomically (DB constraints).
+
+Route planning: basic stop ordering, maps link for drivers.
+
+Receivables: retry failed payments, downloadable invoices.
+
+Platform
+
+Mobile apps (Driver + Customer) with push notifications.
+
+Role-scoped audit trail: who advanced which status and when.
+
+Analytics: conversion → fulfillment funnel, zip heatmaps, slot utilization.
+
+License / Ownership
+
+This MVP is built for Tom’s Laundry Service. If expanded to an app or production service, we’ll scope the next phase and finalize terms.
