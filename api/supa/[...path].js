@@ -4,36 +4,45 @@ export default async function handler(req, res) {
     // CORS preflight
     if (req.method === "OPTIONS") {
       res.setHeader("Access-Control-Allow-Origin", "*");
-      res.setHeader("Access-Control-Allow-Headers", "authorization, apikey, content-type, x-client-info");
+      res.setHeader("Access-Control-Allow-Headers",
+        "authorization, apikey, content-type, x-client-info, accept, accept-profile, prefer, range, if-none-match, if-match, content-profile"
+      );
       res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
       res.status(200).end();
       return;
     }
 
-    // Base URL from env (prefer server var), sanitize and strip trailing slash
+    // Base URL from env
     const base = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "")
-      .trim()
-      .replace(/[<>]/g, "")
-      .replace(/\/+$/, "");
+      .trim().replace(/[<>]/g, "").replace(/\/+$/, "");
     if (!base) return res.status(500).json({ error: "missing_supabase_url" });
 
-    // Build target URL from the incoming request (preserve path/query after /api/supa/)
+    // Build target from incoming path/query
     const host = req.headers.host || "localhost";
-    const full = new URL(req.url, `https://${host}`);
-    const pathAfterProxy = full.pathname.replace(/^\/api\/supa\/?/, ""); // e.g. rest/v1/... or auth/v1/...
-    const targetUrl = `${base}/${pathAfterProxy}${full.search || ""}`;
+    const url = new URL(req.url, `https://${host}`);
+    const pathAfterProxy = url.pathname.replace(/^\/api\/supa\/?/, ""); // e.g. rest/v1/user_profiles
+    const targetUrl = `${base}/${pathAfterProxy}${url.search || ""}`;
 
     // Keys
     const anon = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
     if (!anon) return res.status(500).json({ error: "missing_anon_key" });
 
-    // Forward headers: keep user's Authorization if present (critical for recovery/current user)
+    // Forward browser headers (whitelist) + apikey
+    const fwd = (name) => req.headers[name] ? { [name]: req.headers[name] } : {};
     const headers = {
       apikey: anon,
+      ...fwd("authorization"),           // keep user access token if present
+      ...fwd("content-type"),
+      ...fwd("accept"),
+      ...fwd("accept-profile"),          // important for PostgREST schema selection
+      ...fwd("content-profile"),
+      ...fwd("prefer"),
+      ...fwd("range"),
+      ...fwd("if-none-match"),
+      ...fwd("if-match"),
       "x-client-info": req.headers["x-client-info"] || "vercel-proxy",
-      ...(req.headers["content-type"] ? { "content-type": req.headers["content-type"] } : {}),
-      Authorization: req.headers.authorization ? req.headers.authorization : `Bearer ${anon}`,
     };
+    if (!headers.authorization) headers.authorization = `Bearer ${anon}`;
 
     // Stream body for non-GET/HEAD
     let body;
@@ -43,7 +52,7 @@ export default async function handler(req, res) {
       body = Buffer.concat(chunks);
     }
 
-    // Forward to Supabase
+    // Call Supabase
     const upstream = await fetch(targetUrl, { method: req.method, headers, body });
 
     // Mirror response
@@ -56,9 +65,21 @@ export default async function handler(req, res) {
     const buf = Buffer.from(await upstream.arrayBuffer());
     res.send(buf);
   } catch (e) {
-    res.status(500).json({ error: e?.message || "proxy_error" });
+    // Always include target for debugging even on failure
+    try {
+      const host = req.headers.host || "localhost";
+      const url = new URL(req.url, `https://${host}`);
+      const base = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "")
+        .trim().replace(/[<>]/g, "").replace(/\/+$/, "");
+      const pathAfterProxy = url.pathname.replace(/^\/api\/supa\/?/, "");
+      const targetUrl = base ? `${base}/${pathAfterProxy}${url.search || ""}` : "(base missing)";
+      res.setHeader("x-proxy-target", targetUrl);
+    } catch {}
+
+    res.status(502).json({ error: e?.message || "upstream_fetch_failed" });
   }
 }
+
 
 
 
