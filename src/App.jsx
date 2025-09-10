@@ -81,26 +81,9 @@ export default function App() {
           <Route path="/me" element={<RequireAuth><MyStart /></RequireAuth>} />
 
           {/* Customer */}
-          <Route
-            path="/schedule"
-            element={
-              <RequireAuth>
-                <RequireRole allow={["customer","admin"]}>
-                  <Schedule />
-                </RequireRole>
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/track"
-            element={
-              <RequireAuth>
-                <RequireRole allow={["customer","admin"]}>
-                  <Track />
-                </RequireRole>
-              </RequireAuth>
-            }
-          />
+         <Route path="/schedule" element={<Schedule/>} />
+          <Route path="/track"    element={<Track/>} />
+          
           <Route path="/account" element={<RequireAuth><Account /></RequireAuth>} />
 
           {/* Admin */}
