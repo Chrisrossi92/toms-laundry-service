@@ -1,5 +1,6 @@
 // src/App.jsx
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, Link, useLocation, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 import { useSession } from "./lib/AuthProvider.jsx";
 
 // Pages
@@ -10,31 +11,15 @@ import Account from "./pages/Account.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Driver from "./pages/Driver.jsx";
 import AdminSlots from "./pages/AdminSlots.jsx";
-import AdminPricing from "./pages/AdminPricing.jsx";  // keep if you added the page
-import AdminUsers from "./pages/AdminUsers.jsx";      // keep if you added the page
-import Reset from './pages/Reset.jsx';
-
+import AdminPricing from "./pages/AdminPricing.jsx";
+import AdminUsers from "./pages/AdminUsers.jsx";
+import Reset from "./pages/Reset.jsx";
 
 // Nav
 import RoleNav from "./components/nav/RoleNav.jsx";
 import AuthMenu from "./components/nav/AuthMenu.jsx";
-import { useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 
-function AppShell() {
-  const nav = useNavigate();
-  const loc = useLocation();
-
-  useEffect(() => {
-    if (window.location.hash.includes('type=recovery') && !loc.pathname.startsWith('/reset')) {
-      nav('/reset' + window.location.hash, { replace: true });
-    }
-  }, [loc, nav]);
-
-  // ...rest of your app shell
-}
-
-
+/** Require auth wrapper */
 function RequireAuth({ children }) {
   const { session, authLoading } = useSession();
   if (authLoading) return <div className="p-6 text-white">Checking your session…</div>;
@@ -42,6 +27,7 @@ function RequireAuth({ children }) {
   return children;
 }
 
+/** Require role wrapper */
 function RequireRole({ children, allow }) {
   const { role, profileLoading } = useSession();
   if (profileLoading) return <div className="p-6 text-white">Loading…</div>;
@@ -49,25 +35,35 @@ function RequireRole({ children, allow }) {
   return children;
 }
 
-/** Role-aware landing after login (link to /me) */
+/** Role-aware landing after login */
 function MyStart() {
   const { role } = useSession();
   if (role === "admin")  return <Navigate to="/dashboard" replace />;
   if (role === "driver") return <Navigate to="/driver" replace />;
-  return <Navigate to="/schedule" replace />; // customer
+  return <Navigate to="/schedule" replace />;
 }
 
 export default function App() {
+  const nav = useNavigate();
+  const loc = useLocation();
+
+  // 🔧 Handle Supabase recovery links: redirect homepage#hash → /reset#hash
+  useEffect(() => {
+    if (window.location.hash.includes("type=recovery") && !loc.pathname.startsWith("/reset")) {
+      nav("/reset" + window.location.hash, { replace: true });
+    }
+  }, [loc, nav]);
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4">
           <div className="h-14 flex items-center justify-between text-white">
-            {/* Brand link: always go Home */}
-            <a href="/" className="font-semibold tracking-tight">
+            {/* Use Link to avoid full page reloads */}
+            <Link to="/" className="font-semibold tracking-tight">
               Tom’s Laundry Service
-            </a>
+            </Link>
             <div className="flex items-center gap-6">
               <RoleNav />
               <AuthMenu />
@@ -80,6 +76,8 @@ export default function App() {
       <main className="flex-1">
         <Routes>
           <Route path="/" element={<Home />} />
+          {/* reset MUST be before the wildcard */}
+          <Route path="/reset" element={<Reset />} />
           <Route path="/me" element={<RequireAuth><MyStart /></RequireAuth>} />
 
           {/* Customer */}
@@ -159,19 +157,18 @@ export default function App() {
             }
           />
 
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" />} />
-          <Route path="/reset" element={<Reset />} />
+          {/* Fallback LAST */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
 
-      {/* Footer */}
       <footer className="text-xs text-white/80 text-center py-8">
         © {new Date().getFullYear()} Tom’s Laundry Service • Cleveland, OH
       </footer>
     </div>
   );
 }
+
 
 
 
