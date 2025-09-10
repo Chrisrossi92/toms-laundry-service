@@ -16,7 +16,7 @@ export default function AdminSlots() {
   const [zoneName, setZoneName] = useState("");
   const [feeCents, setFeeCents] = useState(300);
 
-  // zip editor
+  // selected zone memo + zip entry
   const selectedZone = useMemo(() => zones.find(z => z.id === zoneId) || null, [zones, zoneId]);
   const [newZip, setNewZip] = useState("");
 
@@ -27,13 +27,13 @@ export default function AdminSlots() {
     d.setDate(d.getDate() + 13);
     return d.toISOString().slice(0, 10);
   });
-  const [winStart, setWinStart] = useState("18:00");
-  const [winEnd, setWinEnd] = useState("20:00");
+  const [winStart, setWinStart] = useState("18:00"); // time (HH:MM)
+  const [winEnd, setWinEnd] = useState("20:00");     // time (HH:MM)
   const [capacity, setCapacity] = useState(8);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
-  // slots for selected date
+  // slots for selected day
   const [slots, setSlots] = useState([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [sErr, setSErr] = useState("");
@@ -41,22 +41,22 @@ export default function AdminSlots() {
   useEffect(() => { loadZones(); }, []);
 
   async function loadZones() {
-  setZonesLoading(true); setZErr("");
-  const { data, error } = await supabase
-    .from("zones")
-    .select("id,name,zip_codes,pickup_fee_cents")
-    .order("id", { ascending: true });
+    setZonesLoading(true); setZErr("");
+    const { data, error } = await supabase
+      .from("zones")
+      .select("id,name,zip_codes,pickup_fee_cents")
+      .order("id", { ascending: true });
 
-  if (error) {
-    console.error("zones load error:", error);
-    setZErr(error.message);     // this renders at the top of the page
-    setZones([]);               // keep UI stable
-  } else {
-    setZones(data || []);
-    if (!zoneId && data && data.length) setZoneId(data[0].id);
+    if (error) {
+      console.error("zones load error:", error);
+      setZErr(error.message);
+      setZones([]);
+    } else {
+      setZones(data || []);
+      if (!zoneId && data && data.length) setZoneId(data[0].id);
+    }
+    setZonesLoading(false);
   }
-  setZonesLoading(false);
-}
 
   async function createZone() {
     setMsg(""); setZErr("");
@@ -64,19 +64,19 @@ export default function AdminSlots() {
       if (!zoneName.trim()) throw new Error("Enter a zone name.");
       const fee = Number(feeCents);
       if (!Number.isFinite(fee) || fee < 0) throw new Error("Pickup fee must be a non-negative number (cents).");
+
       const { data, error } = await supabase
         .from("zones")
         .insert({ name: zoneName.trim(), pickup_fee_cents: fee, zip_codes: [] })
         .select("id,name,zip_codes,pickup_fee_cents")
         .single();
       if (error) throw error;
+
       setZoneName("");
       await loadZones();
       setZoneId(data.id);
       setMsg(`Zone “${data.name}” created.`);
-    } catch (e) {
-      alert(e?.message || String(e));
-    }
+    } catch (e) { alert(e?.message || String(e)); }
   }
 
   async function addZip() {
@@ -96,9 +96,7 @@ export default function AdminSlots() {
       setZones(zones.map(z => z.id === selectedZone.id ? { ...z, zip_codes: data.zip_codes } : z));
       setNewZip("");
       setMsg(`Added ZIP ${zip}.`);
-    } catch (e) {
-      alert(e?.message || String(e));
-    }
+    } catch (e) { alert(e?.message || String(e)); }
   }
 
   async function removeZip(zip) {
@@ -115,25 +113,22 @@ export default function AdminSlots() {
       if (error) throw error;
       setZones(zones.map(z => z.id === selectedZone.id ? { ...z, zip_codes: data.zip_codes } : z));
       setMsg(`Removed ZIP ${zip}.`);
-    } catch (e) {
-      alert(e?.message || String(e));
-    }
+    } catch (e) { alert(e?.message || String(e)); }
   }
 
+  // build array of dates between genFrom..genTo (inclusive)
   function* dateRange(from, to) {
     const d = new Date(from + "T00:00:00");
     const end = new Date(to + "T00:00:00");
-    while (d <= end) {
-      yield new Date(d);
-      d.setDate(d.getDate() + 1);
-    }
+    while (d <= end) { yield new Date(d); d.setDate(d.getDate() + 1); }
   }
-
-  function toUTCDate(date, hhmm) {
-    const [h, m] = hhmm.split(":").map(Number);
-    // construct UTC datetime
-    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), h, m, 0)).toISOString();
-  }
+  const pad = (n)=>String(n).padStart(2,"0");
+  const asTime = (hhmm)=> `${hhmm}:00`; // convert "18:00" -> "18:00:00" for time column
+  const fmt12 = (t)=> { // "18:00:00" -> "6:00 PM"
+    const [H,M] = t.split(":").map(Number);
+    const h = ((H + 11) % 12) + 1;
+    return `${h}:${pad(M)} ${H >= 12 ? "PM" : "AM"}`;
+  };
 
   async function generateWindows() {
     if (!selectedZone) return alert("Select a zone first.");
@@ -144,31 +139,25 @@ export default function AdminSlots() {
     try {
       const rows = [];
       for (const d of dateRange(genFrom, genTo)) {
-        const slot_date = d.toISOString().slice(0, 10);
         rows.push({
           zone_id: selectedZone.id,
-          slot_date,
-          window_start: toUTCDate(d, winStart),
-          window_end: toUTCDate(d, winEnd),
+          date: d.toISOString().slice(0, 10),  // <-- your column is named "date"
+          window_start: asTime(winStart),       // time without TZ
+          window_end: asTime(winEnd),
           capacity: Number(capacity),
           used_count: 0,
         });
       }
-      // bulk insert in chunks (PostgREST prefers <=1000 rows)
-      const chunkSize = 200;
-      for (let i = 0; i < rows.length; i += chunkSize) {
-        const chunk = rows.slice(i, i + chunkSize);
+      // insert in chunks
+      for (let i = 0; i < rows.length; i += 200) {
+        const chunk = rows.slice(i, i + 200);
         const { error } = await supabase.from("time_slots").insert(chunk);
         if (error) throw error;
       }
       setMsg(`Created ${rows.length} pickup window(s) for “${selectedZone.name}”.`);
-      // refresh slots list for selected day if it’s inside the generated range
       if (dateStr >= genFrom && dateStr <= genTo) await loadSlotsForDay();
-    } catch (e) {
-      alert(e?.message || String(e));
-    } finally {
-      setBusy(false);
-    }
+    } catch (e) { alert(e?.message || String(e)); }
+    finally { setBusy(false); }
   }
 
   async function loadSlotsForDay() {
@@ -176,9 +165,9 @@ export default function AdminSlots() {
     setSlotsLoading(true); setSErr("");
     const { data, error } = await supabase
       .from("time_slots")
-      .select("id,slot_date,window_start,window_end,capacity,used_count")
+      .select("id,date,window_start,window_end,capacity,used_count")
       .eq("zone_id", selectedZone.id)
-      .eq("slot_date", dateStr)
+      .eq("date", dateStr)                           // <-- filter by "date"
       .order("window_start", { ascending: true });
     if (error) setSErr(error.message);
     setSlots(data || []);
@@ -191,8 +180,7 @@ export default function AdminSlots() {
     <div className="max-w-6xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-semibold text-white">Zones &amp; Slots</h1>
       <p className="mt-2 text-sm text-white/80">
-        1) Create or select a zone. 2) Add ZIP codes. 3) Generate pickup windows (date range, time window, capacity).
-        4) Check slots for a date to confirm.
+        1) Create or select a zone. 2) Add ZIP codes. 3) Generate pickup windows (date range, time window, capacity). 4) Check slots for a date.
       </p>
 
       {msg && <div className="mt-4 rounded bg-green-600/20 text-green-200 p-3">{msg}</div>}
@@ -202,6 +190,7 @@ export default function AdminSlots() {
         {/* Left: Zones & ZIPs */}
         <div className="rounded-xl bg-white/90 p-4 text-black">
           <h2 className="font-semibold">Step 1 • Zones</h2>
+
           <div className="mt-2">
             {zonesLoading ? (
               <div className="text-sm text-gray-600">Loading zones…</div>
@@ -331,9 +320,7 @@ export default function AdminSlots() {
                   {slots.map(s => (
                     <li key={s.id} className="p-3 text-sm flex items-center justify-between">
                       <span>
-                        {new Date(s.window_start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        {" – "}
-                        {new Date(s.window_end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {fmt12(s.window_start)} – {fmt12(s.window_end)}
                       </span>
                       <span className="text-gray-600">
                         {s.used_count} / {s.capacity}
@@ -344,10 +331,12 @@ export default function AdminSlots() {
               )}
             </div>
           </div>
+
         </div>
       </div>
     </div>
   );
 }
+
 
 
