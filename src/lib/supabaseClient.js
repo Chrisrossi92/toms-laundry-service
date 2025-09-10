@@ -28,23 +28,26 @@ const client = createClient(SUPABASE_URL, SUPABASE_ANON, {
   },
 });
 
+e// keep the imports + guard above as-is
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON, {
   global: {
     fetch: (url, opts) => {
       if (typeof window !== "undefined" && typeof url === "string" && url.startsWith(SUPABASE_URL)) {
         const u = new URL(url);
 
-        // Auth must be direct (recovery/login/current-user)
+        // ALWAYS direct for auth (recovery/login/current user)
         if (u.pathname.startsWith("/auth/v1")) return fetch(url, opts);
 
         // Read role/profile direct
         if (u.pathname.startsWith("/rest/v1/user_profiles")) return fetch(url, opts);
 
-        // ✅ Make zones & time_slots direct too
-        if (u.pathname.startsWith("/rest/v1/zones")) return fetch(url, opts);
-        if (u.pathname.startsWith("/rest/v1/time_slots")) return fetch(url, opts);
+        // Admin/settings + scheduling tables direct
+        if (u.pathname.startsWith("/rest/v1/settings_laundry"))  return fetch(url, opts);
+        if (u.pathname.startsWith("/rest/v1/settings_pricing"))  return fetch(url, opts);
+        if (u.pathname.startsWith("/rest/v1/zones"))              return fetch(url, opts);
+        if (u.pathname.startsWith("/rest/v1/time_slots"))         return fetch(url, opts);
 
-        // Everything else in REST can use proxy in prod (direct in dev already)
+        // Everything else: proxy only on prod host, direct in dev
         const isProdHost = !/^localhost$|^127\.0\.0\.1$/.test(window.location.hostname);
         if (u.pathname.startsWith("/rest/v1") && isProdHost) {
           const proxied = "/api/supa" + url.slice(SUPABASE_URL.length);
@@ -55,6 +58,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON, {
     },
   },
 });
+
 
 export default client;            // default export (covers either import style)
 
