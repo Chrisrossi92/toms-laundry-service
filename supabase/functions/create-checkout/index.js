@@ -88,7 +88,7 @@ serve(async (req) => {
     // Build Stripe Checkout Session with FULL metadata used by webhook
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      success_url: `${SITE_URL}/success`,
+      success_url: `${SITE_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${SITE_URL}/cancel`,
       customer_email: authUser ? undefined : (customer_email || undefined),
       payment_intent_data: { metadata: { purpose: "tls-order" } },

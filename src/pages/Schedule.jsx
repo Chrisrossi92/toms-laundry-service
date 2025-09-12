@@ -133,26 +133,25 @@ export default function Schedule() {
   }, [slots]);
 
   // helper: nice label for YYYY-MM-DD
-const dateLabel = (iso) => format(new Date(iso + "T00:00:00"), "EEE M/d");
+  const dateLabel = (iso) => format(new Date(iso + "T00:00:00"), "EEE M/d");
 
-// all dates that have slots (sorted)
-const dates = useMemo(() => Object.keys(grouped).sort(), [grouped]);
+  // all dates that have slots (sorted)
+  const dates = useMemo(() => Object.keys(grouped).sort(), [grouped]);
 
-// which date is currently selected in the scroller
-const [selectedDate, setSelectedDate] = useState(null);
+  // which date is currently selected in the scroller
+  const [selectedDate, setSelectedDate] = useState(null);
 
-// keep selectedDate valid as slots load/change
-useEffect(() => {
-  if (dates.length) {
-    setSelectedDate(prev => (prev && dates.includes(prev) ? prev : dates[0]));
-  } else {
-    setSelectedDate(null);
-  }
-}, [dates]);
+  // keep selectedDate valid as slots load/change
+  useEffect(() => {
+    if (dates.length) {
+      setSelectedDate(prev => (prev && dates.includes(prev) ? prev : dates[0]));
+    } else {
+      setSelectedDate(null);
+    }
+  }, [dates]);
 
-// times for the selected day
-const timesForSelected = useMemo(() => (selectedDate ? grouped[selectedDate] || [] : []), [grouped, selectedDate]);
-
+  // times for the selected day
+  const timesForSelected = useMemo(() => (selectedDate ? grouped[selectedDate] || [] : []), [grouped, selectedDate]);
 
   const perBag = (pricing.per_bag_cents || 0) / 100;
   const baseSubtotal = bags * perBag;
@@ -228,64 +227,65 @@ const timesForSelected = useMemo(() => (selectedDate ? grouped[selectedDate] || 
         )}
 
         {/* Slots */}
-<div className="mb-6">
-  <div className="flex items-center justify-between">
-    <label className="text-sm text-gray-700">Pickup window (next 7 days)</label>
-    <span className="text-xs text-gray-500">
-      {loadingSlots ? "Loading windows…" : zoneId ? "Select a date & time" : "Enter ZIP to view windows"}
-    </span>
-  </div>
+        <div className="mb-6">
+          <div className="flex items-center justify-between">
+            <label className="text-sm text-gray-700">Pickup window (next 7 days)</label>
+            <span className="text-xs text-gray-500">
+              {loadingSlots ? "Loading windows…" : zoneId ? "Select a date & time" : "Enter ZIP to view windows"}
+            </span>
+          </div>
 
-  {/* Date scroller */}
-  <div className="mt-3 overflow-x-auto pb-2">
-    <div className="flex gap-2 min-w-max">
-      {dates.length === 0 && zoneId && !loadingSlots && (
-        <div className="text-sm text-gray-500">No windows available for this ZIP yet.</div>
-      )}
-      {dates.map(d => {
-        const active = d === selectedDate;
-        return (
-          <button
-            key={d}
-            onClick={() => { setSelectedDate(d); setPickupSlot(null); }}
-            className={[
-              "px-3 py-2 rounded-md border whitespace-nowrap",
-              active ? "bg-black text-white border-black" : "bg-white/90 hover:bg-white border-gray-300"
-            ].join(" ")}
-          >
-            {dateLabel(d)}
-          </button>
-        );
-      })}
-    </div>
-  </div>
+          {/* Date scroller */}
+          <div className="mt-3 overflow-x-auto pb-2">
+            <div className="flex gap-2 min-w-max">
+              {dates.length === 0 && zoneId && !loadingSlots && (
+                <div className="text-sm text-gray-500">No windows available for this ZIP yet.</div>
+              )}
+              {dates.map(d => {
+                const active = d === selectedDate;
+                return (
+                  <button
+                    key={d}
+                    onClick={() => { setSelectedDate(d); setPickupSlot(null); }}
+                    className={[
+                      "px-3 py-2 rounded-md border whitespace-nowrap",
+                      active ? "bg-black text-white border-black" : "bg-white/90 hover:bg-white border-gray-300"
+                    ].join(" ")}
+                  >
+                    {dateLabel(d)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-  {/* Times grid for selected date */}
-  {selectedDate && (
-    <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-      {timesForSelected.map(s => {
-        const full = s.used_count >= s.capacity;
-        const selected = pickupSlot?.id === s.id;
-        const label = `${s.window_start.slice(0,5)}–${s.window_end.slice(0,5)}`;
-        return (
-          <button
-            key={s.id}
-            disabled={full}
-            onClick={() => setPickupSlot(s)}
-            className={[
-              "px-3 py-2 rounded-md border text-sm",
-              selected ? "bg-black text-white border-black" : "bg-white/90 hover:bg-white border-gray-300",
-              full ? "opacity-40 cursor-not-allowed" : ""
-            ].join(" ")}
-            title={full ? "Full" : ""}
-          >
-            {label}
-          </button>
-        );
-      })}
-    </div>
-  )}
-</div>
+          {/* Times grid for selected date */}
+          {selectedDate && (
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+              {timesForSelected.map(s => {
+                const full = s.used_count >= s.capacity;
+                const selected = pickupSlot?.id === s.id;
+                const label = `${s.window_start.slice(0,5)}–${s.window_end.slice(0,5)}`;
+                return (
+                  <button
+                    key={s.id}
+                    disabled={full}
+                    onClick={() => setPickupSlot(s)}
+                    className={[
+                      "px-3 py-2 rounded-md border text-sm",
+                      selected ? "bg-black text-white border-black" : "bg-white/90 hover:bg-white border-gray-300",
+                      full ? "opacity-40 cursor-not-allowed" : ""
+                    ].join(" ")}
+                    title={full ? "Full" : ""}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         {/* Bags + notes */}
         <div className="grid md:grid-cols-2 gap-4">
           <div>
@@ -325,6 +325,8 @@ const timesForSelected = useMemo(() => (selectedDate ? grouped[selectedDate] || 
     </div>
   );
 }
+
+
 
 
 

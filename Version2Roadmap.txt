@@ -1,0 +1,100 @@
+🧭 Tom’s Laundry — Version 2 Roadmap
+🎯 Core Goals for V2
+
+Mobile-first, app-ready design (easy path to React Native later).
+
+Industrial quality emphasized (commercial machines, no in-home wash).
+
+Minimal clicks to complete an order (conversion focus).
+
+Scalable & modular so we can layer features without big rewrites.
+
+✅ Phase 1: Foundation (Mobile-First Web App Enhancements)
+
+Redesign Order Flow
+
+Combine signup/login + first order into one smooth modal.
+
+3 steps max:
+
+Pickup/Delivery details
+
+Preferences (optional, default to “Basic Wash & Fold”)
+
+Payment/Confirm
+
+Sticky “Place Order” button always visible on mobile.
+
+Transparent Pricing Estimator
+
+By weight + extras (bulky items, express delivery).
+
+Show cost before checkout.
+
+Clear messaging on minimum orders.
+
+Scheduling Improvements
+
+Customer selects time slot windows (2–3 hr blocks).
+
+Recurring order toggle (“every week” / “every other week”).
+
+🚀 Phase 2: Engagement & Trust
+
+Order Tracking
+
+Simple timeline: Placed → Picked Up → In Wash → Out for Delivery → Delivered.
+
+Status auto-updates (basic backend triggers for now).
+
+Notifications
+
+Email + SMS updates at each stage.
+
+Build hooks for future push notifications (for app version).
+
+Trust & Transparency
+
+“Commercial machines, no mixing” guarantee.
+
+Facility photos + about us page.
+
+Safety badges (staff background-checked, sanitized facility).
+
+📈 Phase 3: Differentiators
+
+Express Service Option
+
+Same-day delivery for extra fee.
+
+Clear upsell at checkout.
+
+Loyalty & Referrals
+
+Simple rewards system: credits for referrals & repeat orders.
+
+Show credits on profile + apply at checkout.
+
+Saved Preferences
+
+Detergent type, folding style, delivery notes auto-fill.
+
+Returning users = 1–2 taps to reorder.
+
+📱 Phase 4: App Transition (React Native)
+
+Wrap Current Codebase
+
+Convert React components to React Native.
+
+Reuse backend (Supabase + Stripe).
+
+Publish PWA now → later App Store / Play Store.
+
+App-Only Enhancements
+
+Push notifications.
+
+Driver ETA tracking.
+
+B2B profiles (Airbnb, offices).

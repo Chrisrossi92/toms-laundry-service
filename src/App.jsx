@@ -18,6 +18,8 @@ import Reset from "./pages/Reset.jsx";
 // Nav
 import RoleNav from "./components/nav/RoleNav.jsx";
 import AuthMenu from "./components/nav/AuthMenu.jsx";
+import Success from "./pages/Success.jsx";
+
 
 /** Require auth wrapper */
 function RequireAuth({ children }) {
@@ -83,6 +85,8 @@ export default function App() {
           {/* Customer */}
          <Route path="/schedule" element={<Schedule/>} />
           <Route path="/track"    element={<Track/>} />
+          <Route path="/success" element={<Success />} />
+
           
           <Route path="/account" element={<RequireAuth><Account /></RequireAuth>} />
 

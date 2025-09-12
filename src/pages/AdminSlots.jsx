@@ -1,342 +1,277 @@
-// src/pages/AdminSlots.jsx
 import { useEffect, useMemo, useState } from "react";
+import { format, addDays } from "date-fns";
 import { supabase } from "../lib/supabaseClient";
+import { useSession } from "../lib/AuthProvider.jsx";
 
 export default function AdminSlots() {
-  // zones
+  const { role, authLoading } = useSession(); // role comes from profile
+  const isAdmin = role === "admin";
+
   const [zones, setZones] = useState([]);
-  const [zonesLoading, setZonesLoading] = useState(false);
-  const [zErr, setZErr] = useState("");
-
-  // selected zone & date
   const [zoneId, setZoneId] = useState(null);
-  const [dateStr, setDateStr] = useState(() => new Date().toISOString().slice(0, 10));
 
-  // create zone form
-  const [zoneName, setZoneName] = useState("");
-  const [feeCents, setFeeCents] = useState(300);
-
-  // selected zone memo + zip entry
-  const selectedZone = useMemo(() => zones.find(z => z.id === zoneId) || null, [zones, zoneId]);
-  const [newZip, setNewZip] = useState("");
-
-  // generate windows form
-  const [genFrom, setGenFrom] = useState(() => new Date().toISOString().slice(0, 10));
-  const [genTo, setGenTo] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 13);
-    return d.toISOString().slice(0, 10);
-  });
-  const [winStart, setWinStart] = useState("18:00"); // time (HH:MM)
-  const [winEnd, setWinEnd] = useState("20:00");     // time (HH:MM)
-  const [capacity, setCapacity] = useState(8);
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
-
-  // slots for selected day
+  const [rangeDays, setRangeDays] = useState(14);
+  const [loading, setLoading] = useState(false);
   const [slots, setSlots] = useState([]);
-  const [slotsLoading, setSlotsLoading] = useState(false);
-  const [sErr, setSErr] = useState("");
 
-  useEffect(() => { loadZones(); }, []);
+  const [newSlot, setNewSlot] = useState({
+    date: format(new Date(), "yyyy-MM-dd"),
+    start: "09:00",
+    end: "11:00",
+    capacity: 6,
+  });
 
-  async function loadZones() {
-    setZonesLoading(true); setZErr("");
-    const { data, error } = await supabase
-      .from("zones")
-      .select("id,name,zip_codes,pickup_fee_cents")
-      .order("id", { ascending: true });
+  const [bulkDays, setBulkDays] = useState(7);
+  const [bulkWindows, setBulkWindows] = useState([
+    { start: "09:00", end: "11:00", capacity: 6 },
+    { start: "13:00", end: "15:00", capacity: 6 },
+    { start: "17:00", end: "19:00", capacity: 6 },
+  ]);
 
-    if (error) {
-      console.error("zones load error:", error);
-      setZErr(error.message);
-      setZones([]);
-    } else {
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("zones").select("id,name,zip_codes").order("id");
       setZones(data || []);
-      if (!zoneId && data && data.length) setZoneId(data[0].id);
-    }
-    setZonesLoading(false);
-  }
+      if (data?.length && !zoneId) setZoneId(data[0].id);
+    })();
+  }, []);
 
-  async function createZone() {
-    setMsg(""); setZErr("");
-    try {
-      if (!zoneName.trim()) throw new Error("Enter a zone name.");
-      const fee = Number(feeCents);
-      if (!Number.isFinite(fee) || fee < 0) throw new Error("Pickup fee must be a non-negative number (cents).");
-
+  useEffect(() => {
+    if (!zoneId) return;
+    (async () => {
+      setLoading(true);
+      const today = format(new Date(), "yyyy-MM-dd");
+      const end = format(addDays(new Date(), rangeDays), "yyyy-MM-dd");
       const { data, error } = await supabase
-        .from("zones")
-        .insert({ name: zoneName.trim(), pickup_fee_cents: fee, zip_codes: [] })
-        .select("id,name,zip_codes,pickup_fee_cents")
-        .single();
-      if (error) throw error;
+        .from("time_slots")
+        .select("id, zone_id, date, window_start, window_end, capacity, used_count")
+        .eq("zone_id", zoneId)
+        .gte("date", today)
+        .lte("date", end)
+        .order("date")
+        .order("window_start");
+      if (!error) setSlots(data || []);
+      setLoading(false);
+    })();
+  }, [zoneId, rangeDays]);
 
-      setZoneName("");
-      await loadZones();
-      setZoneId(data.id);
-      setMsg(`Zone “${data.name}” created.`);
-    } catch (e) { alert(e?.message || String(e)); }
+  const grouped = useMemo(() => {
+    const m = {};
+    for (const s of slots) (m[s.date] ||= []).push(s);
+    return m;
+  }, [slots]);
+
+  async function addSingleSlot() {
+    if (!zoneId) return alert("Pick a zone first.");
+    const { date, start, end, capacity } = newSlot;
+    const payload = {
+      zone_id: zoneId,
+      date,
+      window_start: start,
+      window_end: end,
+      capacity: Math.max(0, Number(capacity || 0)),
+      used_count: 0,
+    };
+    const { error } = await supabase.from("time_slots").insert([payload]);
+    if (error) return alert(error.message);
+    // reload
+    setRangeDays((d) => d); // trigger effect
   }
 
-  async function addZip() {
-    setMsg(""); setZErr("");
-    try {
-      if (!selectedZone) throw new Error("Select a zone first.");
-      const zip = (newZip || "").trim();
-      if (!/^\d{5}$/.test(zip)) throw new Error("ZIP must be 5 digits.");
-      const next = Array.from(new Set([...(selectedZone.zip_codes || []), zip]));
-      const { data, error } = await supabase
-        .from("zones")
-        .update({ zip_codes: next })
-        .eq("id", selectedZone.id)
-        .select("id,zip_codes")
-        .single();
-      if (error) throw error;
-      setZones(zones.map(z => z.id === selectedZone.id ? { ...z, zip_codes: data.zip_codes } : z));
-      setNewZip("");
-      setMsg(`Added ZIP ${zip}.`);
-    } catch (e) { alert(e?.message || String(e)); }
+  async function closeSlot(id) {
+    const { error } = await supabase.from("time_slots").update({ capacity: 0 }).eq("id", id);
+    if (error) return alert(error.message);
+    setRangeDays((d) => d);
   }
 
-  async function removeZip(zip) {
-    setMsg(""); setZErr("");
-    try {
-      if (!selectedZone) return;
-      const next = (selectedZone.zip_codes || []).filter(z => z !== zip);
-      const { data, error } = await supabase
-        .from("zones")
-        .update({ zip_codes: next })
-        .eq("id", selectedZone.id)
-        .select("id,zip_codes")
-        .single();
-      if (error) throw error;
-      setZones(zones.map(z => z.id === selectedZone.id ? { ...z, zip_codes: data.zip_codes } : z));
-      setMsg(`Removed ZIP ${zip}.`);
-    } catch (e) { alert(e?.message || String(e)); }
-  }
-
-  // build array of dates between genFrom..genTo (inclusive)
-  function* dateRange(from, to) {
-    const d = new Date(from + "T00:00:00");
-    const end = new Date(to + "T00:00:00");
-    while (d <= end) { yield new Date(d); d.setDate(d.getDate() + 1); }
-  }
-  const pad = (n)=>String(n).padStart(2,"0");
-  const asTime = (hhmm)=> `${hhmm}:00`; // convert "18:00" -> "18:00:00" for time column
-  const fmt12 = (t)=> { // "18:00:00" -> "6:00 PM"
-    const [H,M] = t.split(":").map(Number);
-    const h = ((H + 11) % 12) + 1;
-    return `${h}:${pad(M)} ${H >= 12 ? "PM" : "AM"}`;
-  };
-
-  async function generateWindows() {
-    if (!selectedZone) return alert("Select a zone first.");
-    if (!genFrom || !genTo) return alert("Pick a date range.");
-    if (capacity <= 0) return alert("Capacity must be > 0.");
-
-    setBusy(true); setMsg(""); setSErr("");
-    try {
-      const rows = [];
-      for (const d of dateRange(genFrom, genTo)) {
+  async function bulkGenerate() {
+    if (!zoneId) return alert("Pick a zone first.");
+    // naive bulk insert on the client (ok for now; later you can move to an RPC)
+    const rows = [];
+    for (let d = 0; d < bulkDays; d++) {
+      const iso = format(addDays(new Date(), d), "yyyy-MM-dd");
+      for (const w of bulkWindows) {
         rows.push({
-          zone_id: selectedZone.id,
-          date: d.toISOString().slice(0, 10),  // <-- your column is named "date"
-          window_start: asTime(winStart),       // time without TZ
-          window_end: asTime(winEnd),
-          capacity: Number(capacity),
+          zone_id: zoneId,
+          date: iso,
+          window_start: w.start,
+          window_end: w.end,
+          capacity: Math.max(0, Number(w.capacity || 0)),
           used_count: 0,
         });
       }
-      // insert in chunks
-      for (let i = 0; i < rows.length; i += 200) {
-        const chunk = rows.slice(i, i + 200);
-        const { error } = await supabase.from("time_slots").insert(chunk);
-        if (error) throw error;
-      }
-      setMsg(`Created ${rows.length} pickup window(s) for “${selectedZone.name}”.`);
-      if (dateStr >= genFrom && dateStr <= genTo) await loadSlotsForDay();
-    } catch (e) { alert(e?.message || String(e)); }
-    finally { setBusy(false); }
+    }
+    if (!rows.length) return;
+    const { error } = await supabase.from("time_slots").insert(rows, { count: "exact" });
+    if (error) return alert(error.message);
+    setRangeDays((d) => d);
   }
 
-  async function loadSlotsForDay() {
-    if (!selectedZone || !dateStr) return setSlots([]);
-    setSlotsLoading(true); setSErr("");
-    const { data, error } = await supabase
-      .from("time_slots")
-      .select("id,date,window_start,window_end,capacity,used_count")
-      .eq("zone_id", selectedZone.id)
-      .eq("date", dateStr)                           // <-- filter by "date"
-      .order("window_start", { ascending: true });
-    if (error) setSErr(error.message);
-    setSlots(data || []);
-    setSlotsLoading(false);
+  if (authLoading) return null;
+  if (!isAdmin) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <h2 className="text-xl font-semibold mb-2">Admin only</h2>
+        <p className="text-gray-600">You must be an admin to manage slots.</p>
+      </div>
+    );
   }
-
-  useEffect(() => { loadSlotsForDay(); /* eslint-disable-next-line */ }, [zoneId, dateStr]);
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-semibold text-white">Zones &amp; Slots</h1>
-      <p className="mt-2 text-sm text-white/80">
-        1) Create or select a zone. 2) Add ZIP codes. 3) Generate pickup windows (date range, time window, capacity). 4) Check slots for a date.
-      </p>
+    <div className="max-w-6xl mx-auto p-6">
+      <h1 className="text-2xl font-semibold mb-4">Pickup Windows (Admin)</h1>
 
-      {msg && <div className="mt-4 rounded bg-green-600/20 text-green-200 p-3">{msg}</div>}
-      {(zErr || sErr) && <div className="mt-4 rounded bg-red-600/20 text-red-200 p-3">{zErr || sErr}</div>}
-
-      <div className="mt-6 grid md:grid-cols-2 gap-6">
-        {/* Left: Zones & ZIPs */}
-        <div className="rounded-xl bg-white/90 p-4 text-black">
-          <h2 className="font-semibold">Step 1 • Zones</h2>
-
-          <div className="mt-2">
-            {zonesLoading ? (
-              <div className="text-sm text-gray-600">Loading zones…</div>
-            ) : zones.length === 0 ? (
-              <div className="text-sm text-gray-600">No zones yet. Create your first zone below.</div>
-            ) : (
-              <select
-                className="mt-2 w-full rounded border px-3 py-2"
-                value={zoneId || ""}
-                onChange={e => setZoneId(Number(e.target.value))}
-              >
-                <option value="" disabled>Select a zone…</option>
-                {zones.map(z => (
-                  <option key={z.id} value={z.id}>
-                    {z.name} • fee ${(z.pickup_fee_cents/100).toFixed(2)}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          <div className="mt-4 grid grid-cols-3 gap-3">
-            <div className="col-span-2">
-              <label className="text-xs text-gray-600">Zone name</label>
-              <input className="w-full rounded border px-3 py-2" value={zoneName}
-                     onChange={e => setZoneName(e.target.value)} placeholder="Cleveland West" />
-            </div>
-            <div>
-              <label className="text-xs text-gray-600">Pickup fee (cents)</label>
-              <input className="w-full rounded border px-3 py-2" type="number" min={0}
-                     value={feeCents} onChange={e => setFeeCents(e.target.value)} />
-            </div>
-            <div className="col-span-3">
-              <button onClick={createZone} className="rounded bg-black text-white px-4 py-2">
-                Save / create zone
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-6">
-            <h3 className="font-semibold">Step 2 • ZIP codes</h3>
-            {!selectedZone ? (
-              <div className="text-sm text-gray-600">Select a zone to manage ZIPs.</div>
-            ) : (
-              <>
-                <div className="mt-2 flex gap-2">
-                  <input className="w-40 rounded border px-3 py-2"
-                         value={newZip} onChange={e => setNewZip(e.target.value)}
-                         placeholder="44102" maxLength={5} />
-                  <button onClick={addZip} className="rounded bg-black text-white px-4 py-2">Add ZIP</button>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {(selectedZone.zip_codes || []).length === 0 ? (
-                    <div className="text-sm text-gray-600">No ZIPs yet.</div>
-                  ) : (
-                    (selectedZone.zip_codes || []).map(z => (
-                      <span key={z} className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs">
-                        {z}
-                        <button onClick={() => removeZip(z)} className="text-red-600 hover:underline">remove</button>
-                      </span>
-                    ))
-                  )}
-                </div>
-              </>
-            )}
-          </div>
+      {/* Zone + range */}
+      <div className="mb-6 grid md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm text-gray-700">Zone</label>
+          <select
+            className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2"
+            value={zoneId || ""}
+            onChange={(e) => setZoneId(Number(e.target.value))}
+          >
+            {zones.map((z) => (
+              <option key={z.id} value={z.id}>
+                {z.name} — {z.zip_codes?.join(", ")}
+              </option>
+            ))}
+          </select>
         </div>
 
-        {/* Right: Generate + Day view */}
-        <div className="rounded-xl bg-white/90 p-4 text-black">
-          <h2 className="font-semibold">Step 3 • Generate pickup windows</h2>
-          {!selectedZone ? (
-            <div className="mt-2 text-sm text-gray-600">Select a zone first.</div>
-          ) : (
-            <div className="mt-2 grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-gray-600">From</label>
-                <input type="date" className="w-full rounded border px-3 py-2"
-                       value={genFrom} onChange={e => setGenFrom(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-xs text-gray-600">To</label>
-                <input type="date" className="w-full rounded border px-3 py-2"
-                       value={genTo} onChange={e => setGenTo(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-xs text-gray-600">Window start</label>
-                <input type="time" className="w-full rounded border px-3 py-2"
-                       value={winStart} onChange={e => setWinStart(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-xs text-gray-600">Window end</label>
-                <input type="time" className="w-full rounded border px-3 py-2"
-                       value={winEnd} onChange={e => setWinEnd(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-xs text-gray-600">Capacity per window</label>
-                <input type="number" min={1} className="w-full rounded border px-3 py-2"
-                       value={capacity} onChange={e => setCapacity(Number(e.target.value))} />
-              </div>
-              <div className="flex items-end">
-                <button disabled={busy} onClick={generateWindows}
-                        className="rounded bg-black text-white px-4 py-2 disabled:opacity-50">
-                  {busy ? "Creating…" : "Create windows"}
-                </button>
-              </div>
-            </div>
-          )}
+        <div>
+          <label className="block text-sm text-gray-700">Show next … days</label>
+          <input
+            type="number"
+            min={1}
+            max={30}
+            className="mt-1 w-32 rounded-md border border-gray-300 bg-white px-3 py-2"
+            value={rangeDays}
+            onChange={(e) => setRangeDays(Math.max(1, Number(e.target.value || 1)))}
+          />
+        </div>
+      </div>
 
-          <div className="mt-6 border-t pt-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold">Step 4 • Slots on {dateStr}</h2>
-              <div className="flex items-center gap-2">
-                <input type="date" className="rounded border px-3 py-1.5"
-                       value={dateStr} onChange={e => setDateStr(e.target.value)} />
-                <button onClick={loadSlotsForDay} className="text-sm underline">Refresh</button>
-              </div>
-            </div>
-
-            <div className="mt-2 rounded border bg-white">
-              {slotsLoading ? (
-                <div className="p-3 text-sm text-gray-600">Loading…</div>
-              ) : slots.length === 0 ? (
-                <div className="p-3 text-sm text-gray-600">No slots for this date.</div>
-              ) : (
-                <ul className="divide-y">
-                  {slots.map(s => (
-                    <li key={s.id} className="p-3 text-sm flex items-center justify-between">
-                      <span>
-                        {fmt12(s.window_start)} – {fmt12(s.window_end)}
-                      </span>
-                      <span className="text-gray-600">
-                        {s.used_count} / {s.capacity}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+      {/* Add single slot */}
+      <div className="mb-6 rounded-lg border bg-white p-4">
+        <h3 className="font-semibold mb-3">Add single slot</h3>
+        <div className="grid sm:grid-cols-5 gap-3 items-end">
+          <div>
+            <label className="block text-sm">Date</label>
+            <input
+              type="date"
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+              value={newSlot.date}
+              onChange={(e) => setNewSlot((s) => ({ ...s, date: e.target.value }))}
+            />
           </div>
+          <div>
+            <label className="block text-sm">Start</label>
+            <input
+              type="time"
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+              value={newSlot.start}
+              onChange={(e) => setNewSlot((s) => ({ ...s, start: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="block text-sm">End</label>
+            <input
+              type="time"
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+              value={newSlot.end}
+              onChange={(e) => setNewSlot((s) => ({ ...s, end: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="block text-sm">Capacity</label>
+            <input
+              type="number"
+              min={0}
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+              value={newSlot.capacity}
+              onChange={(e) => setNewSlot((s) => ({ ...s, capacity: Number(e.target.value || 0) }))}
+            />
+          </div>
+          <div>
+            <button onClick={addSingleSlot} className="mt-6 rounded-md bg-black px-4 py-2 text-white">
+              Add slot
+            </button>
+          </div>
+        </div>
+      </div>
 
+      {/* Bulk generate */}
+      <div className="mb-6 rounded-lg border bg-white p-4">
+        <h3 className="font-semibold mb-3">Bulk generate</h3>
+        <div className="grid sm:grid-cols-3 gap-3 items-end">
+          <div>
+            <label className="block text-sm">Days forward</label>
+            <input
+              type="number"
+              min={1}
+              max={28}
+              className="mt-1 w-32 rounded-md border border-gray-300 px-3 py-2"
+              value={bulkDays}
+              onChange={(e) => setBulkDays(Math.max(1, Number(e.target.value || 1)))}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-sm">Windows (editable JSON)</label>
+            <textarea
+              rows={3}
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm"
+              value={JSON.stringify(bulkWindows)}
+              onChange={(e) => {
+                try {
+                  const arr = JSON.parse(e.target.value);
+                  if (Array.isArray(arr)) setBulkWindows(arr);
+                } catch {}
+              }}
+            />
+          </div>
+        </div>
+        <button onClick={bulkGenerate} className="mt-3 rounded-md bg-black px-4 py-2 text-white">
+          Generate
+        </button>
+      </div>
+
+      {/* Calendar-ish list */}
+      <div className="rounded-lg border bg-white p-4">
+        <h3 className="font-semibold mb-3">Upcoming windows</h3>
+        {loading && <div className="text-sm text-gray-600">Loading…</div>}
+        {!loading && Object.keys(grouped).length === 0 && <div className="text-sm text-gray-600">No windows yet.</div>}
+        <div className="space-y-4">
+          {Object.entries(grouped).map(([date, rows]) => (
+            <div key={date}>
+              <div className="text-sm font-medium text-gray-700 mb-2">{format(new Date(date + "T00:00:00"), "EEE, MMM d")}</div>
+              <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-2">
+                {rows.map((s) => {
+                  const full = s.used_count >= s.capacity;
+                  return (
+                    <div key={s.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+                      <div className="text-sm">
+                        {s.window_start.slice(0,5)}–{s.window_end.slice(0,5)} • cap {s.capacity} • used {s.used_count}
+                        {full && <span className="ml-1 text-red-600">(full)</span>}
+                      </div>
+                      <button
+                        onClick={() => closeSlot(s.id)}
+                        className="text-xs rounded border px-2 py-1 hover:bg-gray-50"
+                        title="Set capacity to 0"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
   );
 }
+
 
 
 
