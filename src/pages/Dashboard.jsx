@@ -42,7 +42,8 @@ export default function Dashboard() {
   const slots = useSlotsForDate(date);
 
   const [busy, setBusy] = useState(null);
-  const [assigning, setAssigning] = useState(null);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [expandedCol, setExpandedCol] = useState(null);
   const [detailsId, setDetailsId] = useState(null);
 
@@ -110,7 +111,11 @@ export default function Dashboard() {
             value={date}
             onChange={(e) => setDate(e.target.value)}
             className="rounded-md border border-white/30 bg-white/85 backdrop-blur px-3 py-2 text-gray-900"
-          />
+          />'<button onClick={()=>setAssignOpen(true)} className="text-xs rounded border px-2 py-1 hover:bg-gray-50">
+  Assign drivers
+</button>
+
+<AssignDriverModal open={assignOpen} onClose={()=>setAssignOpen(false)} dateISO={selectedDate} />'
         </div>
       </div>
 

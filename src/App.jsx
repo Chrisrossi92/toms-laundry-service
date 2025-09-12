@@ -14,6 +14,7 @@ import AdminSlots from "./pages/AdminSlots.jsx";
 import AdminPricing from "./pages/AdminPricing.jsx";
 import AdminUsers from "./pages/AdminUsers.jsx";
 import Reset from "./pages/Reset.jsx";
+import AdminOrders from "./pages/AdminOrders.jsx";
 
 // Nav
 import RoleNav from "./components/nav/RoleNav.jsx";
@@ -146,6 +147,16 @@ export default function App() {
 
           {/* Fallback LAST */}
           <Route path="*" element={<Navigate to="/" replace />} />
+          <Route
+  path="/admin/orders"
+  element={
+    <RequireAuth>
+      <RequireRole allow={["admin"]}>
+        <AdminOrders />
+      </RequireRole>
+    </RequireAuth>
+  }
+/>
         </Routes>
       </main>
 
